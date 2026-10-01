@@ -10,8 +10,8 @@
   },
   "scripts": {
     "start": "node bin/e2e-server.mjs run",
-    "test": "node --test test/",
-    "check": "node --check bin/e2e-server.mjs && node --test test/"
+    "test": "node --test",
+    "check": "node --check bin/e2e-server.mjs && node --test"
   },
   "engines": {
     "node": ">=20"
