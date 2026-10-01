@@ -214,10 +214,16 @@ export class JobRunner {
 
   // ── Annuleren ────────────────────────────────────────────────────────────
 
-  cancel(reason) {
+  /**
+   * Breekt de job af. Met requeue (de agent stopt voor een herstart of
+   * update) vraagt hij het dashboard de job opnieuw in te plannen in plaats
+   * van hem als geannuleerd te boeken.
+   */
+  cancel(reason, { requeue = false } = {}) {
     if (this.cancelRequested) return;
     this.cancelRequested = true;
     this.cancelReason = reason;
+    this.requeue = requeue;
     this.say(red(`Afbreken: ${reason}`));
     this.abort.abort();
     this.killChild();
@@ -676,6 +682,7 @@ export class JobRunner {
       ...this.payload(),
       status,
       error,
+      requeue: status === 'cancelled' && this.requeue === true,
       exit_code: exitCode,
       duration_ms: Date.now() - this.startedAt,
       totals: {

@@ -1,0 +1,51 @@
+# GJDC E2E-Server: de testagent op een node.
+# Geïnstalleerd door install/install.sh; wijzig liever /etc/gjdc-e2e-server/agent.env.
+
+[Unit]
+Description=GJDC E2E-Server (Playwright-testnode)
+Documentation=https://github.com/GJDC-dev/E2E-Server
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=gjdc-e2e
+Group=gjdc-e2e
+WorkingDirectory=/var/lib/gjdc-e2e-server
+Environment=HOME=/var/lib/gjdc-e2e-server
+Environment=NODE_ENV=production
+Environment=E2E_SERVER_CONFIG=/etc/gjdc-e2e-server/agent.env
+ExecStart=@NODE@ /opt/gjdc-e2e-server/bin/e2e-server.mjs run
+Restart=always
+RestartSec=5
+# De agent breekt lopende tests zelf af en meldt dat aan het dashboard
+# (die zet de run terug in de wachtrij); daar krijgt hij de tijd voor.
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=90
+LimitNOFILE=65536
+
+# Afscherming. Chromium heeft JIT en eigen processen nodig, dus geen
+# MemoryDenyWriteExecute of RestrictNamespaces.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+ReadWritePaths=/var/lib/gjdc-e2e-server
+ReadOnlyPaths=/etc/gjdc-e2e-server
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

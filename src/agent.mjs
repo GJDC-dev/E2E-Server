@@ -176,7 +176,7 @@ export class Agent {
       await sleep(500);
     }
     for (const runner of this.jobs.values()) {
-      runner.cancel('De agent op de node stopt (herstart of update)');
+      runner.cancel('De agent op de node stopt (herstart of update); de run gaat terug in de wachtrij', { requeue: true });
     }
     const hard = Date.now() + 45000;
     while (this.jobs.size > 0 && Date.now() < hard) {
