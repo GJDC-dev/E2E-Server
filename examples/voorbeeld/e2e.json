@@ -1,0 +1,19 @@
+{
+  "name": "Voorbeeld — rooktest",
+  "slug": "voorbeeld",
+  "description": "Laadt de startpagina, controleert titel, serverfouten en beveiligingsheaders. Werkt op elke website: zet het adres bij het testpakket.",
+  "baseUrl": "https://gjdc.nl",
+  "browsers": ["chromium"],
+  "timeoutMinutes": 10,
+  "run": {
+    "retries": 1,
+    "workers": 2
+  },
+  "schedule": "*/30 * * * *",
+  "env": {
+    "E2E_EXPECT_TEXT": {
+      "required": false,
+      "description": "Tekst die op de startpagina hoort te staan (optioneel)."
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "gjdc-e2e-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "De software op de testnodes (mini-pc's): meldt zich aan bij het GJDC-testdashboard, haalt testpakketten op en draait ze met Playwright.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "bin": {
+    "e2e-server": "./bin/e2e-server.mjs"
+  },
+  "scripts": {
+    "start": "node bin/e2e-server.mjs run",
+    "test": "node --test",
+    "check": "node --check bin/e2e-server.mjs && node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "bin",
+    "src",
+    "reporter",
+    "install",
+    "examples",
+    "README.md"
+  ]
+}

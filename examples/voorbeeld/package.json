@@ -1,0 +1,11 @@
+{
+  "name": "voorbeeld-testpakket",
+  "private": true,
+  "description": "Voorbeeld van een testpakket voor het GJDC-testdashboard: een rooktest die op elke website werkt.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
+  }
+}
