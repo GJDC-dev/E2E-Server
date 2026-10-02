@@ -1,0 +1,56 @@
+name: Controle
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [ '20', '22' ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax
+        run: |
+          for bestand in bin/*.mjs src/*.mjs reporter/*.cjs; do
+            node --check "$bestand"
+          done
+
+      - name: Unit-tests
+        run: npm test
+
+      - name: Voorbeeldpakket bouwen en nakijken
+        run: |
+          node bin/e2e-server.mjs bundle examples/voorbeeld -o "$RUNNER_TEMP/voorbeeld.zip"
+          node bin/e2e-server.mjs check-zip "$RUNNER_TEMP/voorbeeld.zip"
+
+  installatie:
+    name: Installatiescript
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: shellcheck install/install.sh
+
+      - name: Hulp tonen zonder root
+        run: bash install/install.sh --help
