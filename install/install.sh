@@ -6,7 +6,7 @@
 #   sudo ./install/install.sh --update
 #   sudo ./install/install.sh --uninstall [--purge]
 #
-# Getest op Ubuntu 22.04/24.04 en Debian 12. Draai het vanuit een checkout
+# Voor Ubuntu 22.04, 24.04 en 26.04 en Debian 12. Draai het vanuit een checkout
 # van de repository; het kopieert zichzelf naar /opt/gjdc-e2e-server.
 
 set -euo pipefail

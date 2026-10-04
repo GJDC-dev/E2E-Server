@@ -77,6 +77,7 @@ export function loadConfig(options = {}) {
     cacheMaxMb: int(get('CACHE_MAX_MB'), 4096, 256, 1048576),
     browsersPath: path.resolve(get('PLAYWRIGHT_BROWSERS_PATH') || path.join(dataDir, 'browsers')),
     chromiumPath: String(get('E2E_CHROMIUM_PATH') ?? '').trim(),
+    hostPlatform: String(get('PLAYWRIGHT_HOST_PLATFORM_OVERRIDE') ?? '').trim(),
     keepRuns: int(get('KEEP_RUNS'), 3, 0, 100),
     logLevel: String(get('LOG_LEVEL') ?? 'info').toLowerCase(),
     allowHttp: bool(get('ALLOW_HTTP')),

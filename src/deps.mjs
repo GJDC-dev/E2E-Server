@@ -93,7 +93,7 @@ export function playwrightCli(runDir) {
  * Draait een opdracht en stuurt de uitvoer regel voor regel naar `onLine`.
  * Wordt na `timeoutMs` of via `signal` afgebroken.
  */
-export function runCommand(command, args, { cwd, env, onLine, timeoutMs = 0, signal } = {}) {
+export function runCommand(command, args, { cwd, env, onLine, timeoutMs = 0, signal, label = '' } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
     let timedOut = false;
@@ -149,8 +149,8 @@ export function runCommand(command, args, { cwd, env, onLine, timeoutMs = 0, sig
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
       if (aborted) reject(Object.assign(new Error('Afgebroken'), { aborted: true }));
-      else if (timedOut) reject(new Error(`${path.basename(command)} duurde te lang en is afgebroken.`));
-      else if (code !== 0) reject(Object.assign(new Error(`${path.basename(command)} ${args[0] ?? ''} eindigde met code ${code}`), { tail }));
+      else if (timedOut) reject(Object.assign(new Error(`${label || path.basename(command)} duurde te lang en is afgebroken.`), { timedOut: true, tail }));
+      else if (code !== 0) reject(Object.assign(new Error(`${label || `${path.basename(command)} ${args[0] ?? ''}`.trim()} eindigde met code ${code}`), { tail }));
       else resolve({ code, tail });
     });
   });
@@ -257,16 +257,91 @@ export function passthroughEnv() {
 const INSTALLABLE = new Set(['chromium', 'firefox', 'webkit']);
 
 /**
- * Installeert de browsers die een pakket nodig heeft, als dat voor deze
- * Playwright-versie nog niet gebeurd is.
- *
- * @returns {Promise<{installed: string[], skipped: string[]}>}
+ * Een oudere Playwright kent een nieuwere Ubuntu nog niet. Op Ubuntu 26.04
+ * zegt Playwright 1.56 bijvoorbeeld "does not support chromium on
+ * ubuntu26.04-x64" en downloadt hij niets. De build voor de nieuwste Ubuntu
+ * die die versie wél kent, werkt daar gewoon; Playwright kiest hem als
+ * PLAYWRIGHT_HOST_PLATFORM_OVERRIDE gezet is. Die keuze wordt per
+ * Playwright-versie bewaard, zodat ook de tests zelf hem gebruiken.
  */
-export async function ensureBrowsers({ runDir, browsers, browsersPath, chromiumPath, onLine, signal }) {
+const UNSUPPORTED_PLATFORM = /does not support \S+ on (ubuntu\d+\.\d+)-(x64|arm64)/;
+const UBUNTU_FALLBACKS = ['24.04', '22.04'];
+
+/**
+ * Het systeem waarvoor de browsers geïnstalleerd zijn, zoals
+ * "ubuntu-26.04-x64". Na een upgrade van de node kijkt de agent daardoor
+ * opnieuw of Playwright het systeem kent.
+ */
+export function osTag() {
+  let id = process.platform;
+  let version = '';
+  try {
+    const release = readFileSync('/etc/os-release', 'utf8');
+    id = release.match(/^ID="?([^"\n]*)"?/m)?.[1] || id;
+    version = release.match(/^VERSION_ID="?([^"\n]*)"?/m)?.[1] ?? '';
+  } catch { /* geen os-release: geen Linux */ }
+  return [id, version, process.arch].filter(Boolean).join('-').replace(/[^A-Za-z0-9._-]/g, '_');
+}
+
+function platformFile(browsersPath, version) {
+  return path.join(browsersPath, `.gjdc-platform-${version}-${osTag()}`);
+}
+
+/**
+ * Het platform dat Playwright `version` op deze node moet aannemen: wat de
+ * beheerder instelde, anders wat de agent eerder voor deze versie koos, en
+ * anders niets (Playwright bepaalt het zelf).
+ */
+export function hostPlatformFor(browsersPath, version, explicit = '') {
+  if (explicit) return explicit;
+  try {
+    return readFileSync(platformFile(browsersPath, version), 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
+/** De regel uit de uitvoer die zegt wat er misging. */
+function failureReason(tail) {
+  const lines = (tail ?? []).map((l) => l.trim()).filter(Boolean);
+  const line = [...lines].reverse().find((l) => /error|failed|denied|not found|enospc|eacces/i.test(l)) ?? lines.at(-1) ?? '';
+  return line.replace(/^(error:\s*)+/i, '');
+}
+
+function browserInstallError(error, version, browser) {
+  if (error.aborted || error.timedOut) return error;
+  const reason = failureReason(error.tail) || error.message;
+  return Object.assign(new Error(`Browser ${browser} installeren mislukt (Playwright ${version}): ${reason}`), { tail: error.tail });
+}
+
+/**
+ * Installeert de browsers die een pakket nodig heeft, als dat voor deze
+ * Playwright-versie op dit systeem nog niet gebeurd is.
+ *
+ * @returns {Promise<{installed: string[], skipped: string[], version: string, hostPlatform: string}>}
+ *   `hostPlatform`: het platform dat ook de tests moeten aannemen ('' = geen).
+ */
+export async function ensureBrowsers({ runDir, browsers, browsersPath, chromiumPath, hostPlatform = '', onLine, signal }) {
   const cli = playwrightCli(runDir);
   if (!cli) throw new Error('Playwright staat niet in de afhankelijkheden van dit pakket (@playwright/test ontbreekt).');
   const version = playwrightVersion(path.join(runDir, 'node_modules'));
   mkdirSync(browsersPath, { recursive: true });
+
+  let platform = hostPlatformFor(browsersPath, version, hostPlatform);
+  const install = (browser, override) => runCommand(process.execPath, [cli, 'install', browser], {
+    label: `playwright install ${browser}`,
+    cwd: runDir,
+    env: {
+      PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH ?? ''}`,
+      HOME: process.env.HOME ?? runDir,
+      PLAYWRIGHT_BROWSERS_PATH: browsersPath,
+      ...(override ? { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: override } : {}),
+      ...passthroughEnv(),
+    },
+    onLine,
+    timeoutMs: 20 * 60 * 1000,
+    signal,
+  });
 
   const installed = [];
   const skipped = [];
@@ -281,24 +356,41 @@ export async function ensureBrowsers({ runDir, browsers, browsersPath, chromiumP
       skipped.push(browser);
       continue;
     }
-    const marker = path.join(browsersPath, `.gjdc-installed-${version}-${browser}`);
+    const marker = path.join(browsersPath, `.gjdc-installed-${version}-${browser}-${osTag()}`);
     if (existsSync(marker)) continue;
 
     onLine?.(`Playwright ${version}: ${browser} installeren…`);
-    await runCommand(process.execPath, [cli, 'install', browser], {
-      cwd: runDir,
-      env: {
-        PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH ?? ''}`,
-        HOME: process.env.HOME ?? runDir,
-        PLAYWRIGHT_BROWSERS_PATH: browsersPath,
-        ...passthroughEnv(),
-      },
-      onLine,
-      timeoutMs: 20 * 60 * 1000,
-      signal,
-    });
+    try {
+      await install(browser, platform);
+    } catch (error) {
+      const unsupported = !platform && UNSUPPORTED_PLATFORM.exec((error.tail ?? []).join('\n'));
+      if (!unsupported) throw browserInstallError(error, version, browser);
+
+      // Een nieuwere Ubuntu dan deze Playwright kent: neem de nieuwste die
+      // hij wel kent.
+      let lastError = error;
+      for (const ubuntu of UBUNTU_FALLBACKS) {
+        const candidate = `ubuntu${ubuntu}-${unsupported[2]}`;
+        onLine?.(`Playwright ${version} kent ${unsupported[1]}-${unsupported[2]} nog niet; de build voor ${candidate} gebruiken…`);
+        try {
+          await install(browser, candidate);
+          platform = candidate;
+          writeFileSync(platformFile(browsersPath, version), candidate);
+          lastError = null;
+          break;
+        } catch (retryError) {
+          // Kent hij ook deze niet, dan de volgende; bij een andere fout
+          // (netwerk, schijf) is dat de melding die telt.
+          if (!UNSUPPORTED_PLATFORM.test((retryError.tail ?? []).join('\n'))) {
+            lastError = retryError;
+            break;
+          }
+        }
+      }
+      if (lastError) throw browserInstallError(lastError, version, browser);
+    }
     writeFileSync(marker, new Date().toISOString());
     installed.push(browser);
   }
-  return { installed, skipped, version };
+  return { installed, skipped, version, hostPlatform: platform };
 }
