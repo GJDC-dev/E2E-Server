@@ -12,7 +12,7 @@ voortgang, uitvoer, testresultaten en rapporten terug.
 
 ## Installeren
 
-Op Ubuntu 22.04/24.04 of Debian 12:
+Op Ubuntu 22.04, 24.04 of 26.04, of Debian 12:
 
 ```bash
 git clone https://github.com/GJDC-dev/E2E-Server.git
@@ -68,7 +68,7 @@ Als dienstgebruiker: `sudo -u gjdc-e2e e2e-server status`. Logs: `journalctl -u 
 2. **Testpakket.** Staat de sha256 al in de cache, dan wordt er niets gedownload. Anders downloaden (hervatbaar met HTTP Range) en de sha256 controleren.
 3. **Uitpakken** in een eigen runmap, met controle op padnamen (geen `..`, geen absolute paden, niet via een symlink naar buiten).
 4. **Afhankelijkheden.** `npm ci` (of `npm install` zonder lockfile), of de `node_modules` uit de cache.
-5. **Browsers**, één keer per Playwright-versie.
+5. **Browsers**, één keer per Playwright-versie. Kent die versie het besturingssysteem van de node nog niet (Ubuntu 26.04 met Playwright ouder dan 1.61), dan gebruikt de node de build voor de nieuwste Ubuntu die de versie wel kent, en meldt dat in de uitvoer.
 6. **Tests.** `playwright test` met de opties van de run (shard, grep, projecten, herkansingen…). Een eigen reporter stuurt per test het resultaat live door; de uitvoer gaat elke ~1,5 s naar het dashboard, met geheime waarden weggepoetst.
 7. **Rapport.** Het HTML-rapport (screenshots, video's, traces) gaat in stukken naar het dashboard, als dat voor dit pakket gewenst is.
 8. **Afronden.** De uitslag wordt gemeld. Lukt dat niet (netwerk weg), dan bewaart de node hem en stuurt hem na zodra het dashboard weer bereikbaar is.

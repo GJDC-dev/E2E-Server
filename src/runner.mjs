@@ -36,7 +36,7 @@ const BLOCKED_ENV = new Set([
   'NODE_OPTIONS', 'NODE_PATH', 'NODE_EXTRA_CA_CERTS', 'NODE_TLS_REJECT_UNAUTHORIZED',
   'LD_PRELOAD', 'LD_LIBRARY_PATH', 'DYLD_INSERT_LIBRARIES',
   'PLAYWRIGHT_BROWSERS_PATH', 'PLAYWRIGHT_HTML_OUTPUT_DIR', 'PLAYWRIGHT_HTML_REPORT',
-  'PLAYWRIGHT_HTML_OPEN', 'PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD', 'CI', 'FORCE_COLOR',
+  'PLAYWRIGHT_HTML_OPEN', 'PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD', 'PLAYWRIGHT_HOST_PLATFORM_OVERRIDE', 'CI', 'FORCE_COLOR',
 ]);
 
 const MAX_PENDING_LOG = 4 * 1024 * 1024;
@@ -407,9 +407,14 @@ export class JobRunner {
       browsers: this.spec.browsers ?? ['chromium'],
       browsersPath: this.config.browsersPath,
       chromiumPath: this.config.chromiumPath,
+      hostPlatform: this.config.hostPlatform,
       signal: this.abort.signal,
       onLine: (l) => this.line(dim(`  browsers │ ${l}`)),
     });
+    this.hostPlatform = browsers.hostPlatform;
+    if (browsers.hostPlatform && !this.config.hostPlatform) {
+      this.say(`Playwright ${browsers.version} kent het besturingssysteem van deze node nog niet; de browsers voor ${browsers.hostPlatform} worden gebruikt. Met een nieuwere @playwright/test in het pakket is dat niet nodig.`);
+    }
     if (browsers.installed.length > 0) {
       this.say(`Browsers geïnstalleerd: ${browsers.installed.join(', ')}.`);
       this.event({ type: 'browsers.installed', level: 'info', job_id: this.id, message: `${browsers.installed.join(', ')} geïnstalleerd voor Playwright ${browsers.version}` });
@@ -464,6 +469,7 @@ export class JobRunner {
       E2E_AGENT_EVENTS: path.join(this.workDir, 'events.ndjson'),
       E2E_NODE_NAME: this.nodeName,
       ...(this.config.chromiumPath ? { E2E_CHROMIUM_PATH: this.config.chromiumPath } : {}),
+      ...(this.hostPlatform ? { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: this.hostPlatform } : {}),
       ...passthroughEnv(),
     };
 

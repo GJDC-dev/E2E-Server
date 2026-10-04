@@ -10,6 +10,7 @@ import { Agent, register } from './agent.mjs';
 import { buildBundle, checkZip } from './bundle.mjs';
 import { Cache } from './cache.mjs';
 import { loadConfig, validateConfig, DEFAULT_CONFIG_FILE } from './config.mjs';
+import { hostPlatformFor, playwrightVersion } from './deps.mjs';
 import { Api, ApiError, AGENT_VERSION } from './http.mjs';
 import { log, setLogLevel } from './log.mjs';
 import { fmtBytes } from './runner.mjs';
@@ -224,8 +225,10 @@ async function cmdDoctor(config) {
   const deps = existsSync(depsDir) ? readdirSync(depsDir).filter((d) => !d.startsWith('.')) : [];
   const withCore = deps.map((d) => path.join(depsDir, d, 'node_modules', 'playwright-core')).find((p) => existsSync(p));
   if (withCore && browsers.some((b) => b.startsWith('chromium'))) {
+    const coreVersion = playwrightVersion(path.dirname(withCore));
+    const hostPlatform = hostPlatformFor(config.browsersPath, coreVersion, config.hostPlatform);
     const probe = spawnSync(process.execPath, ['-e', `require(${JSON.stringify(withCore)}).chromium.launch(${config.chromiumPath ? JSON.stringify({ executablePath: config.chromiumPath }) : ''}).then(b => b.close()).then(() => process.exit(0), e => { console.error(e.message.split('\\n')[0]); process.exit(1); })`], {
-      env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: config.browsersPath },
+      env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: config.browsersPath, ...(hostPlatform ? { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: hostPlatform } : {}) },
       encoding: 'utf8',
       timeout: 60000,
     });
